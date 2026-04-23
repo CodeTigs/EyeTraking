@@ -1,0 +1,19 @@
+# config.yaml
+camera:
+  device_id: 0          # ID da webcam (0 para a padrão)
+  width: 640
+  height: 480
+  fps: 30               # Frames por segundo desejados
+
+tracking:
+  max_num_faces: 1
+  min_detection_confidence: 0.7
+  min_tracking_confidence: 0.7
+
+features:
+  ear_threshold: 0.21   # Limiar do Eye Aspect Ratio para detectar piscada
+  ear_frames: 3         # Quantidade de frames consecutivos abaixo do limiar para validar a piscada
+
+data:
+  output_dir: "data"
+  log_interval: 60      # Intervalo em segundos para salvar/agrupar os dados
