@@ -12,6 +12,7 @@ from features.saccades import SaccadeDetector
 from context.os_monitor import OSMonitor
 from core.tracker import GazeTracker
 from data_pipeline.logger import DataLogger
+from features.focus import FocusDetector
 
 class CameraCapture:
     def __init__(self, device_id=0, width=640, height=480, fps=30):
@@ -129,6 +130,11 @@ if __name__ == "__main__":
     # 4. Inicializa o Gravador de Dados com os dados preenchidos na interface
     logger = DataLogger(subject_id=subject_id, group=group)
 
+    # 5. inicializa detector de foco
+    # Margens personalizadas para o setup (Monitor 24" + webcam Logitech pro C920)
+    focus_detector = FocusDetector(horiz_margins=(0.43, 0.53),
+                                    vert_margins=(0.51, 0.61))
+
     while True:
         ret, frame = cam.read_frame()
         if not ret:
@@ -138,8 +144,15 @@ if __name__ == "__main__":
         janela_ativa = os_monitor.get_active_window_title()
         results = tracker.process_frame(frame)
 
+        # Variáveis padrão caso o rosto não seja detectado
+        ear_atual = 0.0
+        piscou = False
+        amplitude = 0.0
+        is_focused = False
+        focus_status = "Fuga de Tela (Rosto Ausente)"
+
         if results["success"]:
-            # Desenhos do MediaPipe
+            # --- DESENHOS ---
             if results["left_eye"] is not None:
                 cv2.polylines(frame, [results["left_eye"]], isClosed=True, color=(0, 255, 0), thickness=1)
             if results["right_eye"] is not None:
@@ -151,31 +164,40 @@ if __name__ == "__main__":
                 cv2.polylines(frame, [results["right_iris"]], isClosed=True, color=(0, 255, 255), thickness=1)
                 cv2.circle(frame, results["iris_center_right"], 2, (0, 0, 255), -1)
 
-            # Análise
+            # --- ANÁLISE ---
             piscou, ear_atual = blink_detector.detect(results["left_eye"], results["right_eye"])
-            cv2.putText(frame, f"EAR: {ear_atual:.2f} | Piscadas: {blink_detector.blink_counter}", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-
+            
             if ear_atual > (blink_detector.ear_threshold + 0.02):
                 deu_salto, amplitude = saccade_detector.detect(results["iris_center_left"], results["left_eye"])
-                cv2.putText(frame, f"Sacadas: {saccade_detector.saccade_counter} | Amp Real: {amplitude:.1f}px", (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
             else:
                 saccade_detector.prev_iris_pos = None
                 saccade_detector.prev_anchor_pos = None
-                amplitude = 0.0
-                cv2.putText(frame, f"Sacadas: {saccade_detector.saccade_counter} | Amp Real: 0.0px (Piscando)", (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
 
-            janela_texto = janela_ativa[:30] + "..." if len(janela_ativa) > 30 else janela_ativa
-            cv2.putText(frame, f"App: {janela_texto}", (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+            # Detecta o Foco Interno
+            
+            is_focused, focus_status = focus_detector.detect(results["iris_center_left"], results["left_eye"])
 
-            # Grava no CSV usando o nome que veio da interface!
-            logger.log_frame(
-                janela=janela_ativa, 
-                ear=ear_atual, 
-                piscou=piscou, 
-                total_piscadas=blink_detector.blink_counter, 
-                amp_sacada=amplitude, 
-                total_sacadas=saccade_detector.saccade_counter
-            )
+        # --- TEXTOS NA TELA (Fora do if success, para mostrar avisos de rosto ausente) ---
+        color_focus = (0, 255, 0) if is_focused else (0, 0, 255)
+        
+        cv2.putText(frame, f"EAR: {ear_atual:.2f} | Piscadas: {blink_detector.blink_counter}", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(frame, f"Sacadas: {saccade_detector.saccade_counter} | Amp: {amplitude:.1f}px", (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(frame, f"Status: {focus_status}", (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color_focus, 2)
+        
+        janela_texto = janela_ativa[:30] + "..." if len(janela_ativa) > 30 else janela_ativa
+        cv2.putText(frame, f"App: {janela_texto}", (30, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+
+        # --- SALVANDO NO CSV ---
+        logger.log_frame(
+            janela=janela_ativa, 
+            focado=is_focused,
+            status_foco=focus_status,
+            ear=ear_atual, 
+            piscou=piscou, 
+            total_piscadas=blink_detector.blink_counter, 
+            amp_sacada=amplitude, 
+            total_sacadas=saccade_detector.saccade_counter
+        )
 
         cv2.imshow("Teste MediaPipe - Gaze Tracker", frame)
 
