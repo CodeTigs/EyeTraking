@@ -1,4 +1,4 @@
-# EyeTrackingGaze - ADHD Behavioral Analysis 🧠👁️
+# EyeTracking- ADHD Behavioral Analysis 🧠👁️
 
 Este projeto consiste em um sistema de rastreamento ocular (Eye Tracking) desenvolvido em Python para a extração de biomarcadores comportamentais (piscadas, sácadas e zonas de foco). O objetivo principal é fornecer dados estruturados para o treinamento de modelos de Machine Learning focados no auxílio ao diagnóstico de TDAH (Transtorno de Déficit de Atenção com Hiperatividade).
 
